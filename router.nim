@@ -23,9 +23,11 @@ proc bare_route * (req: Request) {.async.} =
         of "/api/all-tags":
             case req.reqMethod:
                 of HttpGet:
-                    let all_tags = get_all_tags_from_items()
+                    let all_item_tags = get_all_tags_from_items()
+                    let all_entry_tags = get_all_tags_from_entries()
                     let data = %* {
-                        "tags": all_tags
+                        "items": all_item_tags,
+                        "entries": all_entry_tags
                     }
                     await req.respond(Http200, $data, headers.newHttpHeaders())
                 else:
@@ -47,6 +49,7 @@ proc bare_route * (req: Request) {.async.} =
                     )
                 of HttpGet:
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
+                    echo(tags)
 
                     let items = get_items_by_tags(tags)
 
@@ -78,7 +81,7 @@ proc bare_route * (req: Request) {.async.} =
                         "Access-Control-Allow-Origin": "*",
                         "Access-Control-Allow-Headers": "*",
                         "Access-Control-Allow-Methods": "*",
-                        "Allow": "OPTIONS, GET, POST"
+                        "Allow": "OPTIONS, GET, POST, DELETE"
                     }
                     await req.respond(
                         Http204,
@@ -87,6 +90,7 @@ proc bare_route * (req: Request) {.async.} =
                     )
                 of HttpGet:
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
+                    echo(tags)
 
                     let items = get_items_by_tags(tags)
                     let entries = get_entries_by_tag(tags)
@@ -110,6 +114,12 @@ proc bare_route * (req: Request) {.async.} =
                         echo getCurrentExceptionMsg()
                         let err = %* { "error": "bad payload" }
                         await req.respond(Http400, $err, headers.newHttpHeaders())
+                    return # this appears to be needed cause we have a try catch???
+                of HttpDelete:
+                    let data = parseJson(req.body)
+                    let tags_raw = parse_json_array(data["tags"])
+                    delete_entry_by_key_tags(data["key"].str, tags_raw)
+                    await req.respond(Http204, "{}", headers.newHttpHeaders())
                 else:
                     let err = %* { "error": "bad method" }
                     await req.respond(Http405, $err, headers.newHttpHeaders())

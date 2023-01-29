@@ -41,11 +41,11 @@ proc bootstrap * () =
 proc get_items_by_tags * (tags: Tags): seq[Item] =
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
-    let inp = "{" & $vals.join(", ") & "}"
+    let inp = make_database_tags(vals)
     let raw = db.getAllRows(sql"""
         SELECT key, itype, tags
         FROM items
-        WHERE tags && ?;
+        WHERE tags <@ ?;
     """, inp)
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
@@ -58,10 +58,18 @@ proc get_all_tags_from_items * (): seq[string] =
     for tag in raw:
         result.add(tag)
 
+proc get_all_tags_from_entries * (): seq[string] =
+    let raw = db.getAllRows(sql"""
+        SELECT DISTINCT ON (tag) unnest(tags) AS tag
+        FROM entries;
+    """)
+    for tag in raw:
+        result.add(tag)
+
 proc get_entries_by_tag * (tags: Tags): seq[Entry] =
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
-    let inp = "{" & $vals.join(", ") & "}"
+    let inp = make_database_tags(vals)
     let raw = db.getAllRows(sql"""
         SELECT key, value, tags
         FROM entries
@@ -75,14 +83,14 @@ proc get_entries_by_tag * (tags: Tags): seq[Entry] =
         ))
 
 proc insert_item * (key: string, itype: string, tags: seq[string]): void =
-    let tags_str: string = "{" & tags.join(",") & "}"
+    let tags_str: string = make_database_tags(tags)
     db.exec(sql"""
         INSERT INTO items (key, itype, tags)
         VALUES (?, ?, ?);
     """, key, itype, tags_str)
 
 proc upsert_entry * (key: string, value: string, tags: seq[string]): void =
-    let tags_str: string = "{" & tags.join(",") & "}"
+    let tags_str: string = make_database_tags(tags)
 
     let res = db.getRow(sql"""
         SELECT COUNT(*)
@@ -109,6 +117,15 @@ proc delete_item_by_key * (key: string): void =
         DELETE FROM items
         WHERE key = ?;
     """, key)
+
+proc delete_entry_by_key_tags * (key: string, tags: seq[string]): void =
+    let tags_str: string = make_database_tags(tags)
+    echo(tags_str)
+    db.exec(sql"""
+        DELETE FROM entries
+        WHERE key = ?
+        AND tags = ?;
+    """, key, tags_str)
 
 #[
     INSERT INTO entries (key, value, tags)
