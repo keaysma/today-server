@@ -1,6 +1,9 @@
+import nimsha2
 import sugar
 import std/algorithm
+import std/encodings
 import std/strutils
+import std/times
 import std/uri
 import json
 
@@ -32,3 +35,21 @@ proc make_database_tags * (tags: seq[string]): string =
         for tag in tags: toLower(tag)
     let sorted_tags = sorted(lower_tags, system.cmp[string])
     return "{" & sorted_tags.join(",") & "}"
+
+proc make_database_tuple * (values: seq): string =
+    return "(" & values.join(",") & ")"
+
+proc make_password_hash * (raw_password: string): string =
+    var sha = initSHA[SHA256]()
+    sha.update("salt")
+    sha.update(raw_password)
+    let digest = sha.final()
+    return convert(digest.toHex(), "UTF-8")
+
+proc make_session_token * (seed: string): string =
+    var sha = initSHA[SHA256]()
+    sha.update("salt")
+    sha.update(seed)
+    sha.update($now())
+    let digest = sha.final()
+    return convert(digest.toHex(), "UTF-8")

@@ -1,7 +1,7 @@
 import sugar
 import std/strutils
-import std/sequtils
 import std/strformat
+import std/parseutils
 import std/db_postgres
 
 import utils, migrations
@@ -57,19 +57,21 @@ proc get_items_by_tags * (tags: Tags): seq[Item] =
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
 
-proc get_all_tags_from_items * (): seq[string] =
-    let raw = db.getAllRows(sql"""
+proc get_all_tags_from_items * (groups_filter: string): seq[string] =
+    let raw = db.getAllRows(sql(fmt"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag 
-        FROM items;
-    """)
+        FROM items
+        WHERE group_id IN {groups_filter};
+    """))
     for tag in raw:
         result.add(tag)
 
-proc get_all_tags_from_entries * (): seq[string] =
-    let raw = db.getAllRows(sql"""
+proc get_all_tags_from_entries * (groups_filter: string): seq[string] =
+    let raw = db.getAllRows(sql(fmt"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag
-        FROM entries;
-    """)
+        FROM entries
+        WHERE group_id IN {groups_filter};
+    """))
     for tag in raw:
         result.add(tag)
 
@@ -134,6 +136,75 @@ proc delete_entry_by_key_tags * (key: string, tags: seq[string]): void =
         AND tags = ?;
     """, key, tags_str)
 
+proc create_user * (username: string, raw_password: string): void =
+    let password_hash = make_password_hash(raw_password)
+    db.exec(sql"""
+        INSERT INTO users (username, password, created)
+        VALUES (?, ?, now());
+    """, username, password_hash)
+    db.exec(sql"""
+        INSERT INTO groups (name, created)
+        VALUES (?, now());
+    """, username)
+
+    let user_row = db.getRow(sql"""SELECT id FROM users WHERE username = ?;""", username)
+    let group_row = db.getRow(sql"""SELECT id FROM groups WHERE name = ?;""", username)
+
+    let user_id = user_row[0]
+    let group_id = group_row[0]
+
+    db.exec(sql"""
+        INSERT INTO user_group_assoc (user_id, group_id)
+        VALUES (?, ?);
+    """, user_id, group_id)
+
+proc create_session * (username: string, password: string): (bool, string) =
+    let password_hash = make_password_hash(password)
+    let raw = db.getAllRows(sql"""
+        SELECT id
+        FROM users
+        WHERE username = ?
+        AND password = ?;
+    """, username, password_hash)
+
+    if raw.len == 0:
+        return (false, "")
+
+    let user_id = raw[0][0]
+    let token = make_session_token(user_id)
+    db.exec(sql"""
+        INSERT INTO sessions (token, user_id, expires)
+        VALUES (?, ?, now() + '24 hours');
+    """, token, user_id)
+
+    # clean up other sessions now
+    db.exec(sql"""DELETE FROM sessions WHERE expires < now();""")
+
+    return (true, token)
+
+proc get_user_id_from_token * (auth_header: string): int =
+    let token = replace(auth_header, "Bearer ", "")
+    let row = db.getRow(sql"""
+        SELECT user_id
+        FROM sessions
+        WHERE token = ?;
+    """, token)
+
+    # if no user_id was found, this raises a ValueError
+    return parseInt(row[0])
+    
+proc get_group_id_from_user_id * (user_id: int): seq[int] =
+    let raw = db.getAllRows(sql"""
+        SELECT group_id
+        FROM user_group_assoc
+        WHERE user_id = ?;
+    """, user_id)
+    
+    let ids = collect(newSeq):
+        for row in raw: parseInt(row[0])
+
+    # if no user_id was found, this raises a ValueError
+    return ids
 #[
     INSERT INTO entries (key, value, tags)
     VALUES ("test", "true", '["foo", "bar"]');
