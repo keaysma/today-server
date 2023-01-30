@@ -1,9 +1,10 @@
 import sugar
 import std/strutils
 import std/sequtils
+import std/strformat
 import std/db_postgres
 
-import utils
+import utils, migrations
 
 let db * = open("localhost", "mkeays", "", "toodo")
 
@@ -22,21 +23,27 @@ type
 
 proc bootstrap * () =
     db.exec(sql("""
-        CREATE TABLE IF NOT EXISTS items (
-            seq SERIAL,
-            key varchar(50) not null,
-            itype varchar(50) not null,
-            tags text[] not null,
-            config jsonb
+        CREATE TABLE IF NOT EXISTS migrations (
+            id INT PRIMARY KEY,
+            datetime TIMESTAMP NOT NULL
         );
     """));
-    db.exec(sql("""
-        CREATE TABLE IF NOT EXISTS entries (
-            key varchar(50) not null,
-            value varchar(250) not null,
-            tags text[] not null
-        );
-    """));
+    for idx, mig in migration_path:
+        let raw = db.getAllRows(sql"""
+            SELECT id
+            FROM migrations
+            WHERE id = ?;
+        """, idx)
+
+        if raw.len > 0:
+            echo(fmt"skipping migration #{idx}")
+        else:
+            echo(fmt"running migration #{idx}")
+            mig(db)
+            db.exec(sql"""
+                INSERT INTO migrations (id, datetime)
+                VALUES (?, now());
+            """, idx)
 
 proc get_items_by_tags * (tags: Tags): seq[Item] =
     let vals = collect(newSeq):
