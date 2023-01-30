@@ -45,7 +45,7 @@ proc bootstrap * () =
                 VALUES (?, now());
             """, idx)
 
-proc get_items_by_tags * (tags: Tags): seq[Item] =
+proc get_items_by_tags * (tags: Tags, group: int): seq[Item] =
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
@@ -75,15 +75,16 @@ proc get_all_tags_from_entries * (groups_filter: string): seq[string] =
     for tag in raw:
         result.add(tag)
 
-proc get_entries_by_tag * (tags: Tags): seq[Entry] =
+proc get_entries_by_tag * (tags: Tags, group: int): seq[Entry] =
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
-    let raw = db.getAllRows(sql"""
+    let raw = db.getAllRows(sql(fmt"""
         SELECT key, value, tags
         FROM entries
-        WHERE tags <@ ?;
-    """, inp)
+        WHERE tags <@ ?
+        AND group_id = ?;
+    """), inp, group)
     for r in raw:
         result.add(Entry(
             key: r[0],
@@ -91,50 +92,54 @@ proc get_entries_by_tag * (tags: Tags): seq[Entry] =
             tags: parse_pg_array(r[2])
         ))
 
-proc insert_item * (key: string, itype: string, tags: seq[string]): void =
+proc insert_item * (key: string, itype: string, tags: seq[string], group: int): void =
     let tags_str: string = make_database_tags(tags)
     db.exec(sql"""
-        INSERT INTO items (key, itype, tags)
-        VALUES (?, ?, ?);
-    """, key, itype, tags_str)
+        INSERT INTO items (key, itype, tags, group_id)
+        VALUES (?, ?, ?, ?);
+    """, key, itype, tags_str, group)
 
-proc upsert_entry * (key: string, value: string, tags: seq[string]): void =
+proc upsert_entry * (key: string, value: string, tags: seq[string], group: int): void =
     let tags_str: string = make_database_tags(tags)
 
     let res = db.getRow(sql"""
         SELECT COUNT(*)
         FROM entries
         WHERE key = ?
-        AND tags = ?;
-    """, key, tags_str)
+        AND tags = ?
+        AND group_id = ?;
+    """, key, tags_str, group)
 
     if parseInt(res[0]) > 0:
         db.exec(sql"""
             UPDATE entries
             SET value = ?
             WHERE key = ?
-            AND tags = ?;
-        """, value, key, tags_str)
+            AND tags = ?
+            AND group_id = ?;
+        """, value, key, tags_str, group)
     else:
         db.exec(sql"""
-            INSERT INTO entries (key, value, tags)
-            VALUES (?, ?, ?);
-        """, key, value, tags_str)
+            INSERT INTO entries (key, value, tags, group_id)
+            VALUES (?, ?, ?, ?);
+        """, key, value, tags_str, group)
 
-proc delete_item_by_key * (key: string): void =
+proc delete_item_by_key * (key: string, group: int): void =
     db.exec(sql"""
         DELETE FROM items
-        WHERE key = ?;
-    """, key)
+        WHERE key = ?
+        AND group_id = ?;
+    """, key, group)
 
-proc delete_entry_by_key_tags * (key: string, tags: seq[string]): void =
+proc delete_entry_by_key_tags * (key: string, tags: seq[string], group: int): void =
     let tags_str: string = make_database_tags(tags)
     echo(tags_str)
     db.exec(sql"""
         DELETE FROM entries
         WHERE key = ?
-        AND tags = ?;
-    """, key, tags_str)
+        AND tags = ?
+        AND group_id = ?;
+    """, key, tags_str, group)
 
 proc create_user * (username: string, raw_password: string): void =
     let password_hash = make_password_hash(raw_password)

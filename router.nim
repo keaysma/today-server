@@ -43,6 +43,7 @@ proc bare_route * (req: Request) {.async.} =
 
     var user_id = -1
     var group_ids = @[-1]
+    var selected_group = -1
     var groups_filter = ""
     try:
         user_id = get_user_id_from_token(req.headers["authorization"])
@@ -50,6 +51,7 @@ proc bare_route * (req: Request) {.async.} =
             raise
         group_ids = get_group_id_from_user_id(user_id)
         groups_filter = make_database_tuple(group_ids)
+        selected_group = group_ids[0]
     except:
         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
         return
@@ -91,7 +93,7 @@ proc bare_route * (req: Request) {.async.} =
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
                     echo(tags)
 
-                    let items = get_items_by_tags(tags)
+                    let items = get_items_by_tags(tags, selected_group)
 
                     var data = %* {
                         "items": items
@@ -101,7 +103,7 @@ proc bare_route * (req: Request) {.async.} =
                     try:
                         let data = parseJson(req.body)
                         let tags_raw = parse_json_array(data["tags"])
-                        insert_item(data["key"].str, data["itype"].str, tags_raw)
+                        insert_item(data["key"].str, data["itype"].str, tags_raw, selected_group)
                         await req.respond(Http201, $data, headers.newHttpHeaders())
                     except:
                         echo getCurrentExceptionMsg()
@@ -110,7 +112,7 @@ proc bare_route * (req: Request) {.async.} =
                     return
                 of HttpDelete:
                     let data = parseJson(req.body)
-                    delete_item_by_key(data["key"].str)
+                    delete_item_by_key(data["key"].str, selected_group)
                     await req.respond(Http204, "{}", headers.newHttpHeaders())
                 else:
                     let err = %* { "error": "bad method" }
@@ -132,8 +134,8 @@ proc bare_route * (req: Request) {.async.} =
                 of HttpGet:
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
 
-                    let items = get_items_by_tags(tags)
-                    let entries = get_entries_by_tag(tags)
+                    let items = get_items_by_tags(tags, selected_group)
+                    let entries = get_entries_by_tag(tags, selected_group)
 
                     var data = %* {
                         "items": items,
@@ -148,7 +150,7 @@ proc bare_route * (req: Request) {.async.} =
                     try:
                         let data = parseJson(req.body)
                         let tags_raw = parse_json_array(data["tags"])
-                        upsert_entry(data["key"].str, data["value"].str, tags_raw)
+                        upsert_entry(data["key"].str, data["value"].str, tags_raw, selected_group)
                         await req.respond(Http201, $data, headers.newHttpHeaders())
                     except:
                         echo getCurrentExceptionMsg()
@@ -158,7 +160,7 @@ proc bare_route * (req: Request) {.async.} =
                 of HttpDelete:
                     let data = parseJson(req.body)
                     let tags_raw = parse_json_array(data["tags"])
-                    delete_entry_by_key_tags(data["key"].str, tags_raw)
+                    delete_entry_by_key_tags(data["key"].str, tags_raw, selected_group)
                     await req.respond(Http204, "{}", headers.newHttpHeaders())
                 else:
                     let err = %* { "error": "bad method" }
