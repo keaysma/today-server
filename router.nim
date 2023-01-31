@@ -2,33 +2,85 @@ import json, sugar
 import std/asynchttpserver
 import std/asyncdispatch
 import std/db_postgres
+import std/strformat
 import std/strutils
 
-import database, utils
+import auth, database, utils
 
-proc bare_route * (req: Request) {.async.} =
+let allowed_origin = "http://today.keays.test"
+let allowed_headers = "Content-Type"
+
+proc bare_route * (req: Request) {.async, gcsafe.} =
     echo("[" & $req.reqMethod & "] " & $req.url.path)
     if req.reqMethod == HttpPost:
         echo(parseJson(req.body))
     let headers = {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "*",
-        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Allow-Origin": fmt"{allowed_origin}",
+        "Access-Control-Allow-Headers": fmt"{allowed_headers}",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "OPTIONS, GET, POST, DELETE",
     }
 
     case req.url.path:
+        of "/":
+            await req.respond(Http200, "{\"message\": \"hello\"}", headers.newHttpHeaders())
+        of "/api/me":
+            case req.reqMethod:
+                of HttpGet:
+                    let user_id = get_user_id_from_headers(db, req.headers)
+                    echo("user_id is" & $user_id)
+                    if user_id < 0:
+                        await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
+                        return
+                    
+                    let selected_group = get_user_current_group_id(db, user_id)
+                    if selected_group < 0:
+                        await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
+                        return
+
+                    let all_item_tags = get_all_tags_from_items(selected_group)
+                    let all_entry_tags = get_all_tags_from_entries(selected_group)
+                    let data = %* {
+                        "items": all_item_tags,
+                        "entries": all_entry_tags
+                    }
+                    await req.respond(Http200, $data, headers.newHttpHeaders())
+                else:
+                    let err = %* { "error": "bad method" }
+                    await req.respond(Http405, $err, headers.newHttpHeaders())
         of "/api/auth":
             case req.reqMethod:
+                of HttpOptions:
+                    let optionsHeaders = {
+                        "Access-Control-Allow-Origin": fmt"{allowed_origin}",
+                        "Access-Control-Allow-Headers": fmt"{allowed_headers}",
+                        "Access-Control-Allow-Credentials": "true",
+                        "Access-Control-Allow-Methods": "OPTIONS, POST",
+                        "Allow": "OPTIONS, POST"
+                    }
+                    await req.respond(
+                        Http204,
+                        "",
+                        optionsHeaders.newHttpHeaders()
+                    )
                 of HttpPost:
                     try:
+                        echo(req.body)
                         let data = parseJson(req.body)
-                        let session_data = create_session(data["username"].str, data["password"].str)
+                        let session_data = create_session(db, data["username"].str, data["password"].str)
                         if session_data[0] == true:
                             let res = %* {
                                 "token": session_data[1]
                             }
-                            await req.respond(Http200, $res, headers.newHttpHeaders())
+                            let customHeaders = {
+                                "Content-Type": "application/json",
+                                "Access-Control-Allow-Origin": fmt"{allowed_origin}",
+                                "Access-Control-Allow-Headers": fmt"{allowed_headers}",
+                                "Access-Control-Allow-Credentials": "true",
+                                "Set-Cookie": fmt"token={session_data[1]}; Path=/; Domain=.keays.test; HttpOnly"
+                            }
+                            await req.respond(Http200, $res, customHeaders.newHttpHeaders())
                         else:
                             await req.respond(Http403, "{\"error\": \"bad creds\"}", headers.newHttpHeaders())
                     except:
@@ -41,46 +93,37 @@ proc bare_route * (req: Request) {.async.} =
                     await req.respond(Http405, $err, headers.newHttpHeaders())
                     return
 
-    var user_id = -1
-    var group_ids = @[-1]
-    var selected_group = -1
-    var groups_filter = ""
-    try:
-        user_id = get_user_id_from_token(req.headers["authorization"])
+    let user_id = get_user_id_from_headers(db, req.headers)
+    echo("user_id is " & $user_id)
+    if user_id < 0:
+        await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
+        return
+    
+    let selected_group = get_user_current_group_id(db, user_id)
+    echo("group_id is " & $selected_group)
+    if selected_group < 0:
+        await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
+        return
+    #[try:
+        user_id = get_user_id_from_token(db, req.headers["authorization"])
         if user_id < 0:
             raise
-        group_ids = get_group_id_from_user_id(user_id)
+        group_ids = get_group_id_from_user_id(db, user_id)
         groups_filter = make_database_tuple(group_ids)
         selected_group = group_ids[0]
     except:
         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
-        return
+        return]#
 
-    echo("user_id is " & $user_id)
-    echo("group_ids are " & $group_ids)
 
     case req.url.path:
-        of "/":
-            await req.respond(Http200, "{\"message\": \"hello\"}", headers.newHttpHeaders())
-        of "/api/all-tags":
-            case req.reqMethod:
-                of HttpGet:
-                    let all_item_tags = get_all_tags_from_items(groups_filter)
-                    let all_entry_tags = get_all_tags_from_entries(groups_filter)
-                    let data = %* {
-                        "items": all_item_tags,
-                        "entries": all_entry_tags
-                    }
-                    await req.respond(Http200, $data, headers.newHttpHeaders())
-                else:
-                    let err = %* { "error": "bad method" }
-                    await req.respond(Http405, $err, headers.newHttpHeaders())
         of "/api/items":
             case req.reqMethod:
                 of HttpOptions:
                     let optionsHeaders = {
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Allow-Origin": fmt"{allowed_origin}",
+                        "Access-Control-Allow-Headers": fmt"{allowed_headers}",
+                        "Access-Control-Allow-Credentials": "true",
                         "Access-Control-Allow-Methods": "*",
                         "Allow": "OPTIONS, GET, POST, DELETE"
                     }
@@ -121,8 +164,9 @@ proc bare_route * (req: Request) {.async.} =
             case req.reqMethod:
                 of HttpOptions:
                     let optionsHeaders = {
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Allow-Origin": fmt"{allowed_origin}",
+                        "Access-Control-Allow-Headers": fmt"{allowed_headers}",
+                        "Access-Control-Allow-Credentials": "true",
                         "Access-Control-Allow-Methods": "*",
                         "Allow": "OPTIONS, GET, POST, DELETE"
                     }
@@ -185,7 +229,7 @@ proc bare_route * (req: Request) {.async.} =
 
     await req.respond(Http500, "{\"error\": \"dropout\"}", headers.newHttpHeaders())
 
-proc safe_route * (req: Request) {.async.} =
+proc safe_route * (req: Request) {.async, gcsafe.} =
     try:
         await bare_route(req)
     except:

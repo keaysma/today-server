@@ -57,21 +57,21 @@ proc get_items_by_tags * (tags: Tags, group: int): seq[Item] =
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
 
-proc get_all_tags_from_items * (groups_filter: string): seq[string] =
-    let raw = db.getAllRows(sql(fmt"""
+proc get_all_tags_from_items * (group: int): seq[string] =
+    let raw = db.getAllRows(sql"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag 
         FROM items
-        WHERE group_id IN {groups_filter};
-    """))
+        WHERE group_id = ?;
+    """, group)
     for tag in raw:
         result.add(tag)
 
-proc get_all_tags_from_entries * (groups_filter: string): seq[string] =
-    let raw = db.getAllRows(sql(fmt"""
+proc get_all_tags_from_entries * (group: int): seq[string] =
+    let raw = db.getAllRows(sql"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag
         FROM entries
-        WHERE group_id IN {groups_filter};
-    """))
+        WHERE group_id = ?;
+    """, group)
     for tag in raw:
         result.add(tag)
 
@@ -163,53 +163,6 @@ proc create_user * (username: string, raw_password: string): void =
         VALUES (?, ?);
     """, user_id, group_id)
 
-proc create_session * (username: string, password: string): (bool, string) =
-    let password_hash = make_password_hash(password)
-    let raw = db.getAllRows(sql"""
-        SELECT id
-        FROM users
-        WHERE username = ?
-        AND password = ?;
-    """, username, password_hash)
-
-    if raw.len == 0:
-        return (false, "")
-
-    let user_id = raw[0][0]
-    let token = make_session_token(user_id)
-    db.exec(sql"""
-        INSERT INTO sessions (token, user_id, expires)
-        VALUES (?, ?, now() + '24 hours');
-    """, token, user_id)
-
-    # clean up other sessions now
-    db.exec(sql"""DELETE FROM sessions WHERE expires < now();""")
-
-    return (true, token)
-
-proc get_user_id_from_token * (auth_header: string): int =
-    let token = replace(auth_header, "Bearer ", "")
-    let row = db.getRow(sql"""
-        SELECT user_id
-        FROM sessions
-        WHERE token = ?;
-    """, token)
-
-    # if no user_id was found, this raises a ValueError
-    return parseInt(row[0])
-    
-proc get_group_id_from_user_id * (user_id: int): seq[int] =
-    let raw = db.getAllRows(sql"""
-        SELECT group_id
-        FROM user_group_assoc
-        WHERE user_id = ?;
-    """, user_id)
-    
-    let ids = collect(newSeq):
-        for row in raw: parseInt(row[0])
-
-    # if no user_id was found, this raises a ValueError
-    return ids
 #[
     INSERT INTO entries (key, value, tags)
     VALUES ("test", "true", '["foo", "bar"]');
