@@ -1,4 +1,6 @@
 import sugar
+import dotenv
+import std/os
 import std/strutils
 import std/strformat
 import std/parseutils
@@ -6,7 +8,8 @@ import std/db_postgres
 
 import utils, migrations
 
-let db * = open("localhost", "mkeays", "", "toodo")
+load()
+let db * = open(getEnv("db_host"), getEnv("db_user"), getEnv("db_password"), getEnv("db"))
 
 type Tags = seq[string]
 
