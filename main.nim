@@ -1,10 +1,11 @@
-import times, strutils
+import times, strutils, dotenv
 
 type EKeyboardInterrupt = object of CatchableError
 
 import std/asynchttpserver
 import std/asyncdispatch
 import std/db_postgres
+import std/os
 
 import router, database
 
@@ -28,6 +29,8 @@ proc main () {.async.} =
         else:
             await sleepAsync(500)
 
+load()
+echo(getEnv("origin"))
 try:
     waitFor main()
 except:

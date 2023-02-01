@@ -52,8 +52,9 @@ proc get_items_by_tags * (tags: Tags, group: int): seq[Item] =
     let raw = db.getAllRows(sql"""
         SELECT key, itype, tags
         FROM items
-        WHERE tags <@ ?;
-    """, inp)
+        WHERE tags <@ ?
+        AND group_id = ?;
+    """, inp, group)
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
 

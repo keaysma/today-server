@@ -1,19 +1,21 @@
-import json, sugar
+import json
 import std/asynchttpserver
 import std/asyncdispatch
-import std/db_postgres
 import std/strformat
 import std/strutils
+import std/os
 
 import auth, database, utils
 
-let allowed_origin = "http://today.keays.test"
-let allowed_headers = "Content-Type"
+const allowed_headers = "Content-Type"
 
-proc bare_route * (req: Request) {.async, gcsafe.} =
+proc bare_route * (req: Request) {.async.} =
+    let allowed_origin = getEnv("origin")
     echo("[" & $req.reqMethod & "] " & $req.url.path)
-    if req.reqMethod == HttpPost:
-        echo(parseJson(req.body))
+    
+    #if req.reqMethod == HttpPost:
+    #    echo(parseJson(req.body))
+    
     let headers = {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": fmt"{allowed_origin}",
@@ -22,6 +24,22 @@ proc bare_route * (req: Request) {.async, gcsafe.} =
         "Access-Control-Allow-Methods": "OPTIONS, GET, POST, DELETE",
     }
 
+    #TODO: Options per endpoint, disabled for now because auth messes up options requests
+    if req.reqMethod == HttpOptions:
+        let optionsHeaders = {
+            "Access-Control-Allow-Origin": fmt"{allowed_origin}",
+            "Access-Control-Allow-Headers": fmt"{allowed_headers}",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "OPTIONS, GET, POST, DELETE",
+            "Allow": "OPTIONS, GET, POST, DELETE"
+        }
+        await req.respond(
+            Http204,
+            "",
+            optionsHeaders.newHttpHeaders()
+        )
+        return 
+    
     case req.url.path:
         of "/":
             await req.respond(Http200, "{\"message\": \"hello\"}", headers.newHttpHeaders())
@@ -51,19 +69,6 @@ proc bare_route * (req: Request) {.async, gcsafe.} =
                     await req.respond(Http405, $err, headers.newHttpHeaders())
         of "/api/auth":
             case req.reqMethod:
-                of HttpOptions:
-                    let optionsHeaders = {
-                        "Access-Control-Allow-Origin": fmt"{allowed_origin}",
-                        "Access-Control-Allow-Headers": fmt"{allowed_headers}",
-                        "Access-Control-Allow-Credentials": "true",
-                        "Access-Control-Allow-Methods": "OPTIONS, POST",
-                        "Allow": "OPTIONS, POST"
-                    }
-                    await req.respond(
-                        Http204,
-                        "",
-                        optionsHeaders.newHttpHeaders()
-                    )
                 of HttpPost:
                     try:
                         echo(req.body)
@@ -104,34 +109,11 @@ proc bare_route * (req: Request) {.async, gcsafe.} =
     if selected_group < 0:
         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
         return
-    #[try:
-        user_id = get_user_id_from_token(db, req.headers["authorization"])
-        if user_id < 0:
-            raise
-        group_ids = get_group_id_from_user_id(db, user_id)
-        groups_filter = make_database_tuple(group_ids)
-        selected_group = group_ids[0]
-    except:
-        await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
-        return]#
 
 
     case req.url.path:
         of "/api/items":
             case req.reqMethod:
-                of HttpOptions:
-                    let optionsHeaders = {
-                        "Access-Control-Allow-Origin": fmt"{allowed_origin}",
-                        "Access-Control-Allow-Headers": fmt"{allowed_headers}",
-                        "Access-Control-Allow-Credentials": "true",
-                        "Access-Control-Allow-Methods": "*",
-                        "Allow": "OPTIONS, GET, POST, DELETE"
-                    }
-                    await req.respond(
-                        Http204,
-                        "",
-                        optionsHeaders.newHttpHeaders()
-                    )
                 of HttpGet:
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
                     echo(tags)
@@ -162,19 +144,6 @@ proc bare_route * (req: Request) {.async, gcsafe.} =
                     await req.respond(Http405, $err, headers.newHttpHeaders())
         of "/api/entries":
             case req.reqMethod:
-                of HttpOptions:
-                    let optionsHeaders = {
-                        "Access-Control-Allow-Origin": fmt"{allowed_origin}",
-                        "Access-Control-Allow-Headers": fmt"{allowed_headers}",
-                        "Access-Control-Allow-Credentials": "true",
-                        "Access-Control-Allow-Methods": "*",
-                        "Allow": "OPTIONS, GET, POST, DELETE"
-                    }
-                    await req.respond(
-                        Http204,
-                        "",
-                        optionsHeaders.newHttpHeaders()
-                    )
                 of HttpGet:
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
 
@@ -229,7 +198,7 @@ proc bare_route * (req: Request) {.async, gcsafe.} =
 
     await req.respond(Http500, "{\"error\": \"dropout\"}", headers.newHttpHeaders())
 
-proc safe_route * (req: Request) {.async, gcsafe.} =
+proc safe_route * (req: Request) {.async.} =
     try:
         await bare_route(req)
     except:

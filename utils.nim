@@ -5,6 +5,7 @@ import std/encodings
 import std/strutils
 import std/times
 import std/uri
+import std/os
 import json
 
 proc parse_from_query * (input: string, key: string, default: string): string =
@@ -41,14 +42,14 @@ proc make_database_tuple * (values: seq): string =
 
 proc make_password_hash * (raw_password: string): string =
     var sha = initSHA[SHA256]()
-    sha.update("salt")
+    sha.update(getEnv("salt"))
     sha.update(raw_password)
     let digest = sha.final()
     return convert(digest.toHex(), "UTF-8")
 
 proc make_session_token * (seed: string): string =
     var sha = initSHA[SHA256]()
-    sha.update("salt")
+    sha.update(getEnv("salt"))
     sha.update(seed)
     sha.update($now())
     let digest = sha.final()
