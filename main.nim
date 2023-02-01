@@ -35,5 +35,5 @@ try:
     waitFor main()
 except:
     echo getCurrentExceptionMsg()
-    db.close()
+    db_conn.close()
     echo "Goodbye"

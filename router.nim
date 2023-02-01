@@ -49,13 +49,13 @@ proc bare_route * (req: Request) {.async.} =
         of "/api/me":
             case req.reqMethod:
                 of HttpGet:
-                    let user_id = get_user_id_from_headers(db, req.headers)
-                    echo("user_id is" & $user_id)
+                    let user_id = get_user_id_from_headers(db(), req.headers)
+                    echo("user_id is " & $user_id)
                     if user_id < 0:
                         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
                         return
                     
-                    let selected_group = get_user_current_group_id(db, user_id)
+                    let selected_group = get_user_current_group_id(db(), user_id)
                     if selected_group < 0:
                         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
                         return
@@ -76,7 +76,7 @@ proc bare_route * (req: Request) {.async.} =
                     try:
                         echo(req.body)
                         let data = parseJson(req.body)
-                        let session_data = create_session(db, data["username"].str, data["password"].str)
+                        let session_data = create_session(db(), data["username"].str, data["password"].str)
                         if session_data[0] == true:
                             let expire = now().utc + initDuration(hours = 24)
                             let expires = format(expire, "ddd, dd MMM yyyy H:mm:ss") & " UTC"
@@ -100,13 +100,13 @@ proc bare_route * (req: Request) {.async.} =
                     await req.respond(Http405, $err, headers.newHttpHeaders())
                     return
 
-    let user_id = get_user_id_from_headers(db, req.headers)
+    let user_id = get_user_id_from_headers(db(), req.headers)
     echo("user_id is " & $user_id)
     if user_id < 0:
         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
         return
     
-    let selected_group = get_user_current_group_id(db, user_id)
+    let selected_group = get_user_current_group_id(db(), user_id)
     echo("group_id is " & $selected_group)
     if selected_group < 0:
         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
