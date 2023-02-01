@@ -1,0 +1,28 @@
+[
+    {
+        "name": "nimsha2",
+        "url": "https://github.com/jangko/nimSHA2",
+        "method": "git",
+        "tags": [
+            "hash", 
+            "crypto", 
+            "library", 
+            "sha256", 
+            "sha224", 
+            "sha384", 
+            "sha512"
+        ],
+        "description": "Secure Hash Algorithm - 2, [224, 256, 384, and 512 bits]",
+        "license": "MIT"
+      },
+      {
+        "name": "dotenv",
+        "url": "https://github.com/euantorano/dotenv.nim",
+        "method": "git",
+        "tags": [
+            "dotenv"
+        ],
+        "description": "Load local environment variables from .env files",
+        "license": "MIT"
+      }
+]

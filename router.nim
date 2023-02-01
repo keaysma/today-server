@@ -3,6 +3,7 @@ import std/asynchttpserver
 import std/asyncdispatch
 import std/strformat
 import std/strutils
+import std/times
 import std/os
 
 import auth, database, utils
@@ -11,6 +12,8 @@ const allowed_headers = "Content-Type"
 
 proc bare_route * (req: Request) {.async.} =
     let allowed_origin = getEnv("origin")
+    let cookie_domain = getEnv("domain")
+    let extra_cookie = getEnv("extra_cookie")
     echo("[" & $req.reqMethod & "] " & $req.url.path)
     
     #if req.reqMethod == HttpPost:
@@ -75,17 +78,16 @@ proc bare_route * (req: Request) {.async.} =
                         let data = parseJson(req.body)
                         let session_data = create_session(db, data["username"].str, data["password"].str)
                         if session_data[0] == true:
-                            let res = %* {
-                                "token": session_data[1]
-                            }
+                            let expire = now().utc + initDuration(hours = 24)
+                            let expires = format(expire, "ddd, dd MMM yyyy H:mm:ss") & " UTC"
                             let customHeaders = {
                                 "Content-Type": "application/json",
                                 "Access-Control-Allow-Origin": fmt"{allowed_origin}",
                                 "Access-Control-Allow-Headers": fmt"{allowed_headers}",
                                 "Access-Control-Allow-Credentials": "true",
-                                "Set-Cookie": fmt"token={session_data[1]}; Path=/; Domain=.keays.test; HttpOnly"
+                                "Set-Cookie": fmt"token={session_data[1]}; Expires={expires}; Path=/; Domain={cookie_domain}; HttpOnly{extra_cookie}"
                             }
-                            await req.respond(Http200, $res, customHeaders.newHttpHeaders())
+                            await req.respond(Http204, "", customHeaders.newHttpHeaders())
                         else:
                             await req.respond(Http403, "{\"error\": \"bad creds\"}", headers.newHttpHeaders())
                     except:

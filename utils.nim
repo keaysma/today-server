@@ -1,4 +1,4 @@
-import nimsha2
+import nimSHA2
 import sugar
 import std/algorithm
 import std/encodings

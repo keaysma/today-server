@@ -1,0 +1,7 @@
+# flyctl launch added from .gitignore
+**/nimcache
+**/nimblecache
+**/htmldocs
+**/main
+**/sha_test
+**/.env
