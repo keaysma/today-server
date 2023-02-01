@@ -2,3 +2,5 @@ nimcache/
 nimblecache/
 htmldocs/
 main
+sha_test
+.env
