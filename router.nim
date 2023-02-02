@@ -74,10 +74,13 @@ proc bare_route * (req: Request) {.async.} =
             case req.reqMethod:
                 of HttpPost:
                     try:
-                        echo(req.body)
+                        #echo(req.body)
                         let data = parseJson(req.body)
+
+                        echo("make session")
                         let session_data = create_session(db(), data["username"].str, data["password"].str)
                         if session_data[0] == true:
+                            echo("make session success")
                             let expire = now().utc + initDuration(hours = 24)
                             let expires = format(expire, "ddd, dd MMM yyyy H:mm:ss") & " UTC"
                             let customHeaders = {
@@ -94,6 +97,28 @@ proc bare_route * (req: Request) {.async.} =
                         echo getCurrentExceptionMsg()
                         let err = %* { "error": "bad payload" }
                         await req.respond(Http400, $err, headers.newHttpHeaders())
+                    return
+                else:
+                    let err = %* { "error": "bad method" }
+                    await req.respond(Http405, $err, headers.newHttpHeaders())
+                    return
+        of "/api/public/entries":
+            case req.reqMethod:
+                of HttpGet:
+                    let tags = parse_from_query(req.url.query, "tags", "").split(",")
+
+                    let items = get_items_by_tags_public(tags)
+                    let entries = get_entries_by_tag_public(tags)
+
+                    var data = %* {
+                        "items": items,
+                        "entries": entries
+                    }
+                    await req.respond(
+                        Http200,
+                        $data,
+                        headers.newHttpHeaders()
+                    )
                     return
                 else:
                     let err = %* { "error": "bad method" }

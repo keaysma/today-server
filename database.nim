@@ -70,6 +70,19 @@ proc get_items_by_tags * (tags: Tags, group: int): seq[Item] =
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
 
+proc get_items_by_tags_public * (tags: Tags): seq[Item] =
+    let vals = collect(newSeq):
+        for tag in tags: "\"" & tag & "\""
+    let inp = make_database_tags(vals)
+    let raw = db().getAllRows(sql"""
+        SELECT key, itype, tags
+        FROM items
+        WHERE tags <@ ?
+        AND tags @> ?;
+    """, inp, "{blog}")
+    for r in raw:
+        result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
+
 proc get_all_tags_from_items * (group: int): seq[string] =
     let raw = db().getAllRows(sql"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag 
@@ -98,6 +111,23 @@ proc get_entries_by_tag * (tags: Tags, group: int): seq[Entry] =
         WHERE tags <@ ?
         AND group_id = ?;
     """), inp, group)
+    for r in raw:
+        result.add(Entry(
+            key: r[0],
+            value: r[1],
+            tags: parse_pg_array(r[2])
+        ))
+
+proc get_entries_by_tag_public * (tags: Tags): seq[Entry] =
+    let vals = collect(newSeq):
+        for tag in tags: "\"" & tag & "\""
+    let inp = make_database_tags(vals)
+    let raw = db().getAllRows(sql(fmt"""
+        SELECT key, value, tags
+        FROM entries
+        WHERE tags <@ ?
+        AND tags @> ?;
+    """), inp, "{blog}")
     for r in raw:
         result.add(Entry(
             key: r[0],
