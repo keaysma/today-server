@@ -63,8 +63,21 @@ proc add_sessions (db: DbConn) =
         );
     """)
 
+proc add_publications (db: DbConn) =
+    db.exec(sql"""
+        CREATE TABLE IF NOT EXISTS publications (
+            id varchar(50) UNIQUE NOT NULL,
+            title varchar(250) NOT NULL,
+            group_id INT NOT NULL,
+            created TIMESTAMP NOT NULL,
+            tags text[] not null,
+            CONSTRAINT fk_publication_group FOREIGN KEY(group_id) REFERENCES groups(id)
+        );
+    """)
+
 let migration_path * = @[
     create_items_and_entries,
     add_users,
-    add_sessions
+    add_sessions,
+    add_publications
 ]

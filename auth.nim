@@ -108,6 +108,15 @@ proc get_group_id_from_user_id * (db: DbConn, user_id: int): seq[int] =
     # if no user_id was found, this raises a ValueError
     return ids
 
+proc get_group_name_by_id * (db: DbConn, group_id: int): string =
+    let row = db.getRow(sql"""
+        SELECt name
+        FROM groups
+        WHERE id = ?;
+    """, group_id)
+
+    return row[0]
+
 # Read the cookie, get the session token, find the user id
 proc get_user_id_from_headers * (db: DbConn, headers: auto): int =
     try:

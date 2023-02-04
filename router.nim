@@ -102,24 +102,43 @@ proc bare_route * (req: Request) {.async.} =
                     let err = %* { "error": "bad method" }
                     await req.respond(Http405, $err, headers.newHttpHeaders())
                     return
-        of "/api/public/entries":
+        of "/api/publications":
             case req.reqMethod:
                 of HttpGet:
-                    let tags = parse_from_query(req.url.query, "tags", "").split(",")
+                    let publication_id = parse_from_query(req.url.query, "id", "")
 
-                    let items = get_items_by_tags_public(tags)
-                    let entries = get_entries_by_tag_public(tags)
+                    if publication_id != "":
+                        try:
+                            let (tags, group_id, title) = get_publication_by_id(publication_id)
+                            let group_name = get_group_name_by_id(db(), group_id)
 
-                    var data = %* {
-                        "items": items,
-                        "entries": entries
-                    }
+                            let items = get_items_by_tags_public(tags, group_id)
+                            let entries = get_entries_by_tag_public(tags, group_id)
+
+                            var data = %* {
+                                "items": items,
+                                "entries": entries,
+                                "tags": tags,
+                                "group": group_name,
+                                "title": title
+                            }
+                            await req.respond(
+                                Http200,
+                                $data,
+                                headers.newHttpHeaders()
+                            )
+                        except:
+                            await req.respond(
+                                Http404,
+                                "{\"error\":\"not found\"}",
+                                headers.newHttpHeaders()
+                            )
+                        return
                     await req.respond(
-                        Http200,
-                        $data,
+                        Http400,
+                        "{\"error\":\"bad request\"}",
                         headers.newHttpHeaders()
                     )
-                    return
                 else:
                     let err = %* { "error": "bad method" }
                     await req.respond(Http405, $err, headers.newHttpHeaders())

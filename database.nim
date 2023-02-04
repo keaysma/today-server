@@ -24,13 +24,20 @@ type Tags = seq[string]
 type
     Entry * = object
         key, value: string
-        tags: seq[string]
+        tags: Tags
 type
     Item * = object
         key: string
         itype: string
-        tags: seq[string]
+        tags: Tags
         # config:
+
+type
+    Publication * = object
+        id: string
+        title: string
+        group_id: int
+        tags: seq[string]
 
 proc bootstrap * () =
     echo("bootstrap")
@@ -70,16 +77,17 @@ proc get_items_by_tags * (tags: Tags, group: int): seq[Item] =
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
 
-proc get_items_by_tags_public * (tags: Tags): seq[Item] =
+proc get_items_by_tags_public * (tags: Tags, group: int): seq[Item] =
+    let secure_tags = tags & @["blog"]
     let vals = collect(newSeq):
-        for tag in tags: "\"" & tag & "\""
+        for tag in secure_tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
     let raw = db().getAllRows(sql"""
         SELECT key, itype, tags
         FROM items
         WHERE tags <@ ?
-        AND tags @> ?;
-    """, inp, "{blog}")
+        AND group_id = ?;
+    """, inp, group)
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
 
@@ -101,6 +109,24 @@ proc get_all_tags_from_entries * (group: int): seq[string] =
     for tag in raw:
         result.add(tag)
 
+proc get_publication_by_id * (id: string): (seq[string], int, string) =
+    let row = db().getRow(sql"""
+        SELECT id, title, group_id, tags
+        FROM publications
+        WHERE id = ?;
+    """, id)
+
+    echo(row)
+
+    let p = Publication(
+        id: row[0],
+        title: row[1],
+        group_id: parseInt(row[2]),
+        tags: parse_pg_array(row[3])
+    )
+
+    return (p.tags, p.group_id, p.title)
+
 proc get_entries_by_tag * (tags: Tags, group: int): seq[Entry] =
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
@@ -118,16 +144,17 @@ proc get_entries_by_tag * (tags: Tags, group: int): seq[Entry] =
             tags: parse_pg_array(r[2])
         ))
 
-proc get_entries_by_tag_public * (tags: Tags): seq[Entry] =
+proc get_entries_by_tag_public * (tags: Tags, group: int): seq[Entry] =
+    let secure_tags = tags & @["blog"]
     let vals = collect(newSeq):
-        for tag in tags: "\"" & tag & "\""
+        for tag in secure_tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
     let raw = db().getAllRows(sql(fmt"""
         SELECT key, value, tags
         FROM entries
         WHERE tags <@ ?
-        AND tags @> ?;
-    """), inp, "{blog}")
+        AND group_id = ?;
+    """), inp, group)
     for r in raw:
         result.add(Entry(
             key: r[0],

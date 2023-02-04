@@ -3,6 +3,7 @@ import sugar
 import std/algorithm
 import std/encodings
 import std/strutils
+import std/sequtils
 import std/times
 import std/uri
 import std/os
@@ -21,6 +22,7 @@ proc parse_from_query * (input: string, key: string, default: string): string =
 
 proc parse_pg_array * (input: string): seq[string] =
     return input
+        .replace("\"", "")
         .replace("{", "")
         .replace("}", "")
         .split(",")
@@ -34,7 +36,8 @@ proc parse_json_array * (input: JsonNode): seq[string] =
 proc make_database_tags * (tags: seq[string]): string =
     let lower_tags = collect(newSeq):
         for tag in tags: toLower(tag)
-    let sorted_tags = sorted(lower_tags, system.cmp[string])
+    let unique_tags = deduplicate(lower_tags)
+    let sorted_tags = sorted(unique_tags, system.cmp[string])
     return "{" & sorted_tags.join(",") & "}"
 
 proc make_database_tuple * (values: seq): string =
