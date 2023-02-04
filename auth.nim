@@ -55,7 +55,7 @@ proc register_quick (db: DbConn, username: string, password_hash: string): (bool
     let token = make_session_token(user_id)
     db.exec(sql"""
         INSERT INTO sessions (token, user_id, expires)
-        VALUES (?, ?, now() + '24 hours');
+        VALUES (?, ?, now() + '72 hours');
     """, token, user_id)
 
     return (true, token)
