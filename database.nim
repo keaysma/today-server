@@ -72,7 +72,8 @@ proc get_items_by_tags * (tags: Tags, group: int): seq[Item] =
         SELECT key, itype, tags
         FROM items
         WHERE tags <@ ?
-        AND group_id = ?;
+        AND group_id = ?
+        ORDER BY seq;
     """, inp, group)
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
@@ -86,7 +87,8 @@ proc get_items_by_tags_public * (tags: Tags, group: int): seq[Item] =
         SELECT key, itype, tags
         FROM items
         WHERE tags <@ ?
-        AND group_id = ?;
+        AND group_id = ?
+        ORDER BY seq;
     """, inp, group)
     for r in raw:
         result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
