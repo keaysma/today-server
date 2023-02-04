@@ -81,7 +81,7 @@ proc bare_route * (req: Request) {.async.} =
                         let session_data = create_session(db(), data["username"].str, data["password"].str)
                         if session_data[0] == true:
                             echo("make session success")
-                            let expire = now().utc + initDuration(hours = 72)
+                            let expire = now().utc + initDuration(hours = 120)
                             let expires = format(expire, "ddd, dd MMM yyyy H:mm:ss") & " UTC"
                             let customHeaders = {
                                 "Content-Type": "application/json",
