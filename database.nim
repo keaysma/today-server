@@ -91,14 +91,21 @@ proc get_items_by_tags_public * (tags: Tags, group: int): seq[Item] =
         for tag in secure_tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
     let raw = db().getAllRows(sql"""
-        SELECT key, itype, tags
+        SELECT key, itype, config, tags
         FROM items
         WHERE tags <@ ?
         AND group_id = ?
         ORDER BY seq;
     """, inp, group)
     for r in raw:
-        result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
+        result.add(
+            Item(
+                key: r[0], 
+                itype: r[1], 
+                config: parseJson(r[2]), 
+                tags: parse_pg_array(r[3])
+            )
+        )
 
 proc get_all_tags_from_items * (group: int): seq[string] =
     let raw = db().getAllRows(sql"""

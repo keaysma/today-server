@@ -248,6 +248,7 @@ proc safe_route * (req: Request) {.async.} =
     try:
         await bare_route(req)
     except:
+        echo "FAILURE"
         echo getCurrentExceptionMsg()
         let headers = {
             "Content-Type": "application/json",
