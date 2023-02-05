@@ -75,9 +75,18 @@ proc add_publications (db: DbConn) =
         );
     """)
 
+proc add_default_config (db: DbConn) =
+    db.exec(sql"""
+        ALTER TABLE items ALTER COLUMN config SET DEFAULT '{}';
+    """)
+    db.exec(sql"""
+        UPDATE items SET config='{}';
+    """)
+
 let migration_path * = @[
     create_items_and_entries,
     add_users,
     add_sessions,
-    add_publications
+    add_publications,
+    add_default_config
 ]

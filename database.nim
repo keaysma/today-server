@@ -1,9 +1,9 @@
+import json
 import sugar
 import dotenv
 import std/os
 import std/strutils
 import std/strformat
-import std/parseutils
 import std/db_postgres
 
 import utils, migrations
@@ -30,7 +30,7 @@ type
         key: string
         itype: string
         tags: Tags
-        # config:
+        config: JsonNode # allegedly (it's actually jsonb)
 
 type
     Publication * = object
@@ -69,14 +69,21 @@ proc get_items_by_tags * (tags: Tags, group: int): seq[Item] =
         for tag in tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
     let raw = db().getAllRows(sql"""
-        SELECT key, itype, tags
+        SELECT key, itype, config, tags
         FROM items
         WHERE tags <@ ?
         AND group_id = ?
         ORDER BY seq;
     """, inp, group)
     for r in raw:
-        result.add(Item(key: r[0], itype: r[1], tags: parse_pg_array(r[2])))
+        result.add(
+            Item(
+                key: r[0], 
+                itype: r[1], 
+                config: parseJson(r[2]), 
+                tags: parse_pg_array(r[3])
+            )
+        )
 
 proc get_items_by_tags_public * (tags: Tags, group: int): seq[Item] =
     let secure_tags = tags & @["blog"]
@@ -164,12 +171,12 @@ proc get_entries_by_tag_public * (tags: Tags, group: int): seq[Entry] =
             tags: parse_pg_array(r[2])
         ))
 
-proc insert_item * (key: string, itype: string, tags: seq[string], group: int): void =
+proc insert_item * (key: string, itype: string, config_json: string, tags: seq[string], group: int): void =
     let tags_str: string = make_database_tags(tags)
     db().exec(sql"""
-        INSERT INTO items (key, itype, tags, group_id)
-        VALUES (?, ?, ?, ?);
-    """, key, itype, tags_str, group)
+        INSERT INTO items (key, itype, config, tags, group_id)
+        VALUES (?, ?, ?, ?, ?);
+    """, key, itype, config_json, tags_str, group)
 
 proc upsert_entry * (key: string, value: string, tags: seq[string], group: int): void =
     let tags_str: string = make_database_tags(tags)

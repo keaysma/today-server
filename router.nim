@@ -174,7 +174,7 @@ proc bare_route * (req: Request) {.async.} =
                     try:
                         let data = parseJson(req.body)
                         let tags_raw = parse_json_array(data["tags"])
-                        insert_item(data["key"].str, data["itype"].str, tags_raw, selected_group)
+                        insert_item(data["key"].str, data["itype"].str, $data["config"], tags_raw, selected_group)
                         await req.respond(Http201, $data, headers.newHttpHeaders())
                     except:
                         echo getCurrentExceptionMsg()
