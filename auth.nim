@@ -11,7 +11,7 @@ type
 
 type
     Group * = object
-        id: int
+        id * : int
         name: string
 
 # put a pw on a newly created user and give them a session
@@ -145,18 +145,26 @@ proc get_user_id_from_headers * (db: DbConn, headers: auto): int =
 # Determine which group a user is working with
 # A placeholder function that just returns the users
 # first group association
-proc get_user_current_group_id * (db: DbConn, user_id: int): int =
+proc get_all_user_groups * (db: DbConn, user_id: int): seq[Group] =
+    result = @[]
     try:
-        let row = db.getRow(sql"""
-            SELECT group_id
-            FROM user_group_assoc
-            WHERE user_id = ?
-            LIMIT 1;
+        let raw = db.getAllRows(sql"""
+            SELECT id, name 
+            FROM groups g 
+            JOIN user_group_assoc a 
+            ON g.id = a.group_id 
+            WHERE a.user_id = ?;
         """, user_id)
 
-        return parseInt(row[0])
+        for row in raw:
+            result.add(
+                Group(
+                    id: parseInt(row[0]),
+                    name: row[1]
+                )
+            )
     except:
-        return -1
+        return @[]
 
 # Determine what level of permission user has for a group
 # -1: no permission (not in group)

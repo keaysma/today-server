@@ -1,7 +1,8 @@
-import json
+import json, sugar
 import std/asynchttpserver
 import std/asyncdispatch
 import std/strformat
+import std/sequtils
 import std/strutils
 import std/times
 import std/os
@@ -54,17 +55,17 @@ proc bare_route * (req: Request) {.async.} =
                     if user_id < 0:
                         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
                         return
-                    
-                    let selected_group = get_user_current_group_id(db(), user_id)
-                    if selected_group < 0:
-                        await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
-                        return
 
-                    let all_item_tags = get_all_tags_from_items(selected_group)
-                    let all_entry_tags = get_all_tags_from_entries(selected_group)
+                    let all_user_groups: seq[Group] = get_all_user_groups(db(), user_id)
+                    let group_ids = collect(newSeq):
+                        for group in all_user_groups: group.id
+
+                    let all_item_tags = get_all_tags_from_items(group_ids)
+                    let all_entry_tags = get_all_tags_from_entries(group_ids)
                     let data = %* {
                         "items": all_item_tags,
-                        "entries": all_entry_tags
+                        "entries": all_entry_tags,
+                        "groups": all_user_groups
                     }
                     await req.respond(Http200, $data, headers.newHttpHeaders())
                 else:
@@ -149,12 +150,10 @@ proc bare_route * (req: Request) {.async.} =
     if user_id < 0:
         await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
         return
-    
-    let selected_group = get_user_current_group_id(db(), user_id)
-    echo("group_id is " & $selected_group)
-    if selected_group < 0:
-        await req.respond(Http401, "{\"message\": \"unauthorized\"}", headers.newHttpHeaders())
-        return
+
+    let all_user_groups: seq[Group] = get_all_user_groups(db(), user_id)
+    let group_ids = collect(newSeq):
+        for group in all_user_groups: group.id
 
 
     case req.url.path:
@@ -164,7 +163,7 @@ proc bare_route * (req: Request) {.async.} =
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
                     echo(tags)
 
-                    let items = get_items_by_tags(tags, selected_group)
+                    let items = get_items_by_tags(tags, group_ids)
 
                     var data = %* {
                         "items": items
@@ -174,7 +173,7 @@ proc bare_route * (req: Request) {.async.} =
                     try:
                         let data = parseJson(req.body)
                         let tags_raw = parse_json_array(data["tags"])
-                        insert_item(data["key"].str, data["itype"].str, $data["config"], tags_raw, selected_group)
+                        insert_item(data["key"].str, data["itype"].str, $data["config"], data["group"].getInt, tags_raw)
                         await req.respond(Http201, $data, headers.newHttpHeaders())
                     except:
                         echo getCurrentExceptionMsg()
@@ -183,7 +182,7 @@ proc bare_route * (req: Request) {.async.} =
                     return
                 of HttpDelete:
                     let data = parseJson(req.body)
-                    delete_item_by_key(data["key"].str, selected_group)
+                    delete_item_by_key(data["key"].str, data["group"].getInt)
                     await req.respond(Http204, "{}", headers.newHttpHeaders())
                 else:
                     let err = %* { "error": "bad method" }
@@ -193,8 +192,8 @@ proc bare_route * (req: Request) {.async.} =
                 of HttpGet:
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
 
-                    let items = get_items_by_tags(tags, selected_group)
-                    let entries = get_entries_by_tag(tags, selected_group)
+                    let items = get_items_by_tags(tags, group_ids)
+                    let entries = get_entries_by_tag(tags, group_ids)
 
                     var data = %* {
                         "items": items,
@@ -209,7 +208,7 @@ proc bare_route * (req: Request) {.async.} =
                     try:
                         let data = parseJson(req.body)
                         let tags_raw = parse_json_array(data["tags"])
-                        upsert_entry(data["key"].str, data["value"].str, tags_raw, selected_group)
+                        upsert_entry(data["key"].str, data["value"].str, tags_raw, data["group"].getInt)
                         await req.respond(Http201, $data, headers.newHttpHeaders())
                     except:
                         echo getCurrentExceptionMsg()
@@ -219,7 +218,7 @@ proc bare_route * (req: Request) {.async.} =
                 of HttpDelete:
                     let data = parseJson(req.body)
                     let tags_raw = parse_json_array(data["tags"])
-                    delete_entry_by_key_tags(data["key"].str, tags_raw, selected_group)
+                    delete_entry_by_key_tags(data["key"].str, tags_raw, data["group"].getInt)
                     await req.respond(Http204, "{}", headers.newHttpHeaders())
                 else:
                     let err = %* { "error": "bad method" }

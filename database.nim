@@ -24,11 +24,13 @@ type Tags = seq[string]
 type
     Entry * = object
         key, value: string
+        group: int
         tags: Tags
 type
     Item * = object
         key: string
         itype: string
+        group: int
         tags: Tags
         config: JsonNode # allegedly (it's actually jsonb)
 
@@ -64,24 +66,26 @@ proc bootstrap * () =
                 VALUES (?, now());
             """, idx)
 
-proc get_items_by_tags * (tags: Tags, group: int): seq[Item] =
+proc get_items_by_tags * (tags: Tags, groups: seq[int]): seq[Item] =
+    let group_filter = make_database_tuple(groups)
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
-    let raw = db().getAllRows(sql"""
-        SELECT key, itype, config, tags
+    let raw = db().getAllRows(sql(fmt"""
+        SELECT key, itype, group_id, config, tags
         FROM items
         WHERE tags <@ ?
-        AND group_id = ?
+        AND group_id IN {group_filter}
         ORDER BY seq;
-    """, inp, group)
+    """), inp)
     for r in raw:
         result.add(
             Item(
                 key: r[0], 
                 itype: r[1], 
-                config: parseJson(r[2]), 
-                tags: parse_pg_array(r[3])
+                group: parseInt(r[2]), 
+                config: parseJson(r[3]), 
+                tags: parse_pg_array(r[4])
             )
         )
 
@@ -107,21 +111,23 @@ proc get_items_by_tags_public * (tags: Tags, group: int): seq[Item] =
             )
         )
 
-proc get_all_tags_from_items * (group: int): seq[string] =
-    let raw = db().getAllRows(sql"""
+proc get_all_tags_from_items * (groups: seq[int]): seq[string] =
+    let group_filter = make_database_tuple(groups)
+    let raw = db().getAllRows(sql(fmt"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag 
         FROM items
-        WHERE group_id = ?;
-    """, group)
+        WHERE group_id IN {group_filter};
+    """))
     for tag in raw:
         result.add(tag)
 
-proc get_all_tags_from_entries * (group: int): seq[string] =
-    let raw = db().getAllRows(sql"""
+proc get_all_tags_from_entries * (groups: seq[int]): seq[string] =
+    let group_filter = make_database_tuple(groups)
+    let raw = db().getAllRows(sql(fmt"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag
         FROM entries
-        WHERE group_id = ?;
-    """, group)
+        WHERE group_id IN {group_filter};
+    """))
     for tag in raw:
         result.add(tag)
 
@@ -143,21 +149,23 @@ proc get_publication_by_id * (id: string): (seq[string], int, string) =
 
     return (p.tags, p.group_id, p.title)
 
-proc get_entries_by_tag * (tags: Tags, group: int): seq[Entry] =
+proc get_entries_by_tag * (tags: Tags, groups: seq[int]): seq[Entry] =
+    let group_filter = make_database_tuple(groups)
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
     let raw = db().getAllRows(sql(fmt"""
-        SELECT key, value, tags
+        SELECT key, value, group_id, tags
         FROM entries
         WHERE tags <@ ?
-        AND group_id = ?;
-    """), inp, group)
+        AND group_id IN {group_filter};
+    """), inp)
     for r in raw:
         result.add(Entry(
             key: r[0],
             value: r[1],
-            tags: parse_pg_array(r[2])
+            group: parseInt(r[2]),
+            tags: parse_pg_array(r[3])
         ))
 
 proc get_entries_by_tag_public * (tags: Tags, group: int): seq[Entry] =
@@ -166,7 +174,7 @@ proc get_entries_by_tag_public * (tags: Tags, group: int): seq[Entry] =
         for tag in secure_tags: "\"" & tag & "\""
     let inp = make_database_tags(vals)
     let raw = db().getAllRows(sql(fmt"""
-        SELECT key, value, tags
+        SELECT key, value, group_id, tags
         FROM entries
         WHERE tags <@ ?
         AND group_id = ?;
@@ -175,10 +183,11 @@ proc get_entries_by_tag_public * (tags: Tags, group: int): seq[Entry] =
         result.add(Entry(
             key: r[0],
             value: r[1],
-            tags: parse_pg_array(r[2])
+            group: parseInt(r[2]),
+            tags: parse_pg_array(r[3])
         ))
 
-proc insert_item * (key: string, itype: string, config_json: string, tags: seq[string], group: int): void =
+proc insert_item * (key: string, itype: string, config_json: string, group: int, tags: seq[string]): void =
     let tags_str: string = make_database_tags(tags)
     db().exec(sql"""
         INSERT INTO items (key, itype, config, tags, group_id)
