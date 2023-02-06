@@ -83,10 +83,21 @@ proc add_default_config (db: DbConn) =
         UPDATE items SET config='{}';
     """)
 
+proc add_user_is_registered_column (db: DbConn) =
+    db.exec(sql"""
+        ALTER TABLE users 
+        ADD COLUMN IF NOT EXISTS registered boolean DEFAULT false;
+    """)
+    db.exec(sql"""
+        UPDATE users
+        SET registered = true;
+    """)
+
 let migration_path * = @[
     create_items_and_entries,
     add_users,
     add_sessions,
     add_publications,
-    add_default_config
+    add_default_config,
+    add_user_is_registered_column
 ]

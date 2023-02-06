@@ -17,7 +17,7 @@ type
 # put a pw on a newly created user and give them a session
 proc register_quick (db: DbConn, username: string, password_hash: string): (bool, string) =
     let raw = db.getAllRows(sql"""
-        SELECT id
+        SELECT id, registered
         FROM users
         WHERE username = ?;
     """, username)
@@ -25,8 +25,11 @@ proc register_quick (db: DbConn, username: string, password_hash: string): (bool
     if raw.len == 0:
         return (false, "")
 
-    let user_id = raw[0][0]
-    let raw_user_id = parseInt(user_id)
+    let raw_user_id = raw[0][0]
+    let user_id = parseInt(raw_user_id)
+
+    let raw_is_registered = raw[0][1]
+    let is_registered = raw_is_registered == "t"
 
     db.exec(sql"""
         UPDATE users
@@ -34,29 +37,30 @@ proc register_quick (db: DbConn, username: string, password_hash: string): (bool
         WHERE username = ?;
     """, password_hash, username)
 
-    db.exec(sql"""
-        INSERT INTO groups (name, created)
-        VALUES (?, now());
-    """, username)
+    if is_registered == false:
+        db.exec(sql"""
+            INSERT INTO groups (name, created)
+            VALUES (?, now());
+        """, username)
 
-    let row = db.getRow(sql"""
-        SELECT id
-        FROM groups
-        WHERE name = ?;
-    """, username)
+        let row = db.getRow(sql"""
+            SELECT id
+            FROM groups
+            WHERE name = ?;
+        """, username)
 
-    let raw_group_id = parseInt(row[0])
+        let raw_group_id = parseInt(row[0])
 
-    db.exec(sql"""
-        INSERT INTO user_group_assoc (user_id, group_id)
-        VALUES (?, ?);
-    """, raw_user_id, raw_group_id)
+        db.exec(sql"""
+            INSERT INTO user_group_assoc (user_id, group_id)
+            VALUES (?, ?);
+        """, user_id, raw_group_id)
 
-    let token = make_session_token(user_id)
+    let token = make_session_token(raw_user_id)
     db.exec(sql"""
         INSERT INTO sessions (token, user_id, expires)
         VALUES (?, ?, now() + '120 hours');
-    """, token, user_id)
+    """, token, raw_user_id)
 
     return (true, token)
 
