@@ -33,6 +33,11 @@ proc parse_json_array * (input: JsonNode): seq[string] =
         .replace("]", "")
         .split(",")
 
+proc get_valid_group * (group_id: int, group_ids: seq[int]): int =
+    if(group_id in group_ids):
+        return group_id
+    return group_ids[0]
+
 proc make_database_tags * (tags: seq[string]): string =
     let lower_tags = collect(newSeq):
         for tag in tags: toLower(tag)

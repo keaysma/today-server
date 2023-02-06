@@ -173,7 +173,8 @@ proc bare_route * (req: Request) {.async.} =
                     try:
                         let data = parseJson(req.body)
                         let tags_raw = parse_json_array(data["tags"])
-                        insert_item(data["key"].str, data["itype"].str, $data["config"], data["group"].getInt, tags_raw)
+                        let group = get_valid_group(data["group"].getInt, group_ids)
+                        insert_item(data["key"].str, data["itype"].str, $data["config"], group, tags_raw)
                         await req.respond(Http201, $data, headers.newHttpHeaders())
                     except:
                         echo getCurrentExceptionMsg()
@@ -182,7 +183,8 @@ proc bare_route * (req: Request) {.async.} =
                     return
                 of HttpDelete:
                     let data = parseJson(req.body)
-                    delete_item_by_key(data["key"].str, data["group"].getInt)
+                    let group = get_valid_group(data["group"].getInt, group_ids)
+                    delete_item_by_key(data["key"].str, group)
                     await req.respond(Http204, "{}", headers.newHttpHeaders())
                 else:
                     let err = %* { "error": "bad method" }
@@ -208,7 +210,8 @@ proc bare_route * (req: Request) {.async.} =
                     try:
                         let data = parseJson(req.body)
                         let tags_raw = parse_json_array(data["tags"])
-                        upsert_entry(data["key"].str, data["value"].str, tags_raw, data["group"].getInt)
+                        let group = get_valid_group(data["group"].getInt, group_ids)
+                        upsert_entry(data["key"].str, data["value"].str, tags_raw, group)
                         await req.respond(Http201, $data, headers.newHttpHeaders())
                     except:
                         echo getCurrentExceptionMsg()
@@ -218,7 +221,8 @@ proc bare_route * (req: Request) {.async.} =
                 of HttpDelete:
                     let data = parseJson(req.body)
                     let tags_raw = parse_json_array(data["tags"])
-                    delete_entry_by_key_tags(data["key"].str, tags_raw, data["group"].getInt)
+                    let group = get_valid_group(data["group"].getInt, group_ids)
+                    delete_entry_by_key_tags(data["key"].str, tags_raw, group)
                     await req.respond(Http204, "{}", headers.newHttpHeaders())
                 else:
                     let err = %* { "error": "bad method" }
