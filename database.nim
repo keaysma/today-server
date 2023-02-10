@@ -111,6 +111,17 @@ proc get_items_by_tags_public * (tags: Tags, group: int): seq[Item] =
             )
         )
 
+proc get_all_tag_sets_from_items * (groups: seq[int]): seq[seq[string]] =
+    let group_filter = make_database_tuple(groups)
+    let raw = db().getAllRows(sql(fmt"""
+        SELECT DISTINCT ON (tags) tags 
+        FROM items 
+        WHERE CAST(tags as TEXT) NOT ILIKE '%:%' 
+        AND group_id IN {group_filter};
+    """))
+    for row in raw:
+        result.add(parse_pg_array(row[0]))
+
 proc get_all_tags_from_items * (groups: seq[int]): seq[string] =
     let group_filter = make_database_tuple(groups)
     let raw = db().getAllRows(sql(fmt"""
