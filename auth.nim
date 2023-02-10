@@ -19,7 +19,8 @@ proc register_quick (db: DbConn, username: string, password_hash: string): (bool
     let raw = db.getAllRows(sql"""
         SELECT id, registered
         FROM users
-        WHERE username = ?;
+        WHERE username = ?
+        AND password IS NULL;
     """, username)
 
     if raw.len == 0:
@@ -80,7 +81,7 @@ proc create_session * (db: DbConn, username: string, password: string): (bool, s
     let token = make_session_token(user_id)
     db.exec(sql"""
         INSERT INTO sessions (token, user_id, expires)
-        VALUES (?, ?, now() + '24 hours');
+        VALUES (?, ?, now() + '120 hours');
     """, token, user_id)
 
     return (true, token)
