@@ -195,6 +195,7 @@ proc bare_route * (req: Request) {.async.} =
             case req.reqMethod:
                 of HttpGet:
                     let tags = parse_from_query(req.url.query, "tags", "").split(",")
+                    echo(tags)
 
                     let items = get_items_by_tags(tags, group_ids)
                     let entries = get_entries_by_tag(tags, group_ids)
