@@ -8,6 +8,8 @@ import std/db_postgres
 import std/os
 
 import router, database
+import routes
+
 
 proc handler() {.noconv.} =
   raise newException(EKeyboardInterrupt, "Keyboard Interrupt")

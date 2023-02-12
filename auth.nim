@@ -14,6 +14,12 @@ type
         id * : int
         name: string
 
+type
+    Session * = object
+        user_id * : int
+        group_ids * : seq[int]
+        groups * : seq[Group]
+
 # put a pw on a newly created user and give them a session
 proc register_quick (db: DbConn, username: string, password_hash: string): (bool, string) =
     let raw = db.getAllRows(sql"""
@@ -148,6 +154,8 @@ proc get_user_id_from_headers * (db: DbConn, headers: auto): int =
 # first group association
 proc get_all_user_groups * (db: DbConn, user_id: int): seq[Group] =
     result = @[]
+    if user_id < 0:
+        return result
     try:
         let raw = db.getAllRows(sql"""
             SELECT id, name 
@@ -166,6 +174,19 @@ proc get_all_user_groups * (db: DbConn, user_id: int): seq[Group] =
             )
     except:
         return @[]
+
+proc get_session_from_headers * (db: DbConn, headers: auto): Session =
+    let user_id = get_user_id_from_headers(db, headers)
+    
+    let all_user_groups: seq[Group] = get_all_user_groups(db, user_id)
+    let group_ids = collect(newSeq):
+        for group in all_user_groups: group.id
+    
+    return Session(
+        user_id: user_id, 
+        group_ids: group_ids,
+        groups: all_user_groups
+    )
 
 # Determine what level of permission user has for a group
 # -1: no permission (not in group)
