@@ -1,6 +1,7 @@
 FROM nimlang/nim
 
 COPY *nim ./
+COPY routes/*nim ./routes/
 COPY packages.json ./
 
 RUN touch .env
