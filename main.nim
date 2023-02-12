@@ -8,7 +8,13 @@ import std/db_postgres
 import std/os
 
 import router, database
-import routes
+import 
+    routes/generic, 
+    routes/items, 
+    routes/entries, 
+    routes/session,
+    routes/users,
+    routes/publications
 
 
 proc handler() {.noconv.} =

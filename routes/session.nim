@@ -1,10 +1,6 @@
-import router, auth, database
-import std/asynchttpserver
+import ../router, ../auth, ../database
+import std/[asynchttpserver, strformat, times]
 import sugar, json
-
-r HttpGet, "/api",
-    proc (req: Request, ctx: Session): Response =
-        return (Http200, "{\"message\": \"hello!!!\"}")
 
 a HttpGet, "/api/me",
     proc (req: Request, ctx: Session): Response =
@@ -18,3 +14,4 @@ a HttpGet, "/api/me",
             "groups": ctx.groups
         }
         return (Http200, $data)
+
