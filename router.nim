@@ -1,11 +1,15 @@
-import json, sugar
-import std/asynchttpserver
-import std/asyncdispatch
-import std/strformat
-import std/strutils
-import std/tables
-import std/times
-import std/os
+import 
+    json, 
+    sugar, 
+    std/[
+        asynchttpserver,
+        asyncdispatch,
+        strformat,
+        strutils,
+        tables,
+        times,
+        os
+    ]
 
 import auth, database, utils
 
@@ -88,40 +92,45 @@ proc handle_route_table (req: Request) {.async gcsafe.} =
             await req.respond(Http400, $err, newHttpHeaders(baseHeaders))
         return
 
-    if route_table.hasKey(rpath):
-        if route_table[rpath].hasKey(rmethod):
-            try:
-                let (cb, auth) = route_table[rpath][rmethod]
-                if auth:
-                    let ctx = get_session_from_headers(db(), req.headers)
-                    if ctx.user_id >= 0:
-                        let (acode, ares) = cb(req, ctx)
-                        echo(fmt"[{rmethod}] {rpath} - {acode}")
-                        await req.respond(acode, ares, newHttpHeaders(baseHeaders))
-                    else:
-                        echo(fmt"[{rmethod}] {rpath} - 401")
-                        await req.respond(Http401, "{\"message\": \"unauthorized\"}", newHttpHeaders(baseHeaders))
-                else:
-                    let (code, res) = cb(req, Session(user_id: -1, group_ids: @[]))
-                    echo(fmt"[{rmethod}] {rpath} - {code}")
-                    await req.respond(code, res, newHttpHeaders(baseHeaders))
-            except:
-                echo(fmt"[{rmethod}] {rpath} - 500")
-                echo getCurrentExceptionMsg()
-                await req.respond(Http500, $ %* {"message": "internal server error"}, newHttpHeaders(baseHeaders))
-        else:
-            echo(fmt"[{rmethod}] {rpath} - 405")
-            await req.respond(Http405, $ %* {"message": "method not allowed"}, newHttpHeaders(baseHeaders))
-    else:
+    if not route_table.hasKey(rpath):
         echo(fmt"[{rmethod}] {rpath} - 404")
         await req.respond(Http404, $ %* {"message": "not found"}, newHttpHeaders(baseHeaders))
+        return
+    
+    if not route_table[rpath].hasKey(rmethod):
+        echo(fmt"[{rmethod}] {rpath} - 405")
+        await req.respond(Http405, $ %* {"message": "method not allowed"}, newHttpHeaders(baseHeaders))
+        return
+    
+    try:
+        let (cb, auth) = route_table[rpath][rmethod]
+        if not auth:
+            let (code, res) = cb(req, Session(user_id: -1, group_ids: @[]))
+            echo(fmt"[{rmethod}] {rpath} - {code}")
+            await req.respond(code, res, newHttpHeaders(baseHeaders))
+            return
+
+        let ctx = get_session_from_headers(db(), req.headers)
+        if ctx.user_id < 0:
+            echo(fmt"[{rmethod}] {rpath} - 401")
+            await req.respond(Http401, $ %* {"message": "unauthorized"}, newHttpHeaders(baseHeaders))
+            return
+
+        let (acode, ares) = cb(req, ctx)
+        echo(fmt"[{rmethod}] {rpath} - {acode}")
+        await req.respond(acode, ares, newHttpHeaders(baseHeaders))
+            
+    except:
+        echo(fmt"[{rmethod}] {rpath} - 500")
+        echo getCurrentExceptionMsg()
+        await req.respond(Http500, $ %* {"message": "internal server error"}, newHttpHeaders(baseHeaders))
+        
 
 proc safe_route * (req: Request) {.async.} =
     try:
-        #await bare_route(req)
         await handle_route_table(req)
     except:
-        echo "FAILURE"
+        echo "FAILURE TO HANDLE REQUEST"
         echo getCurrentExceptionMsg()
         let headers = {
             "Content-Type": "application/json",

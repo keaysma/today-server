@@ -1,10 +1,9 @@
-import json
-import sugar
-import dotenv
-import std/os
-import std/strutils
-import std/strformat
-import std/db_postgres
+import dotenv, json, sugar, std/[
+    os,
+    strutils,
+    strformat,
+    db_postgres
+]
 
 import utils, migrations
 
@@ -42,13 +41,15 @@ type
         tags: seq[string]
 
 proc bootstrap * () =
-    echo("bootstrap")
-    db().exec(sql("""
+    echo("Database Bootstrap")
+    db().exec(sql"""
         CREATE TABLE IF NOT EXISTS migrations (
             id INT PRIMARY KEY,
             datetime TIMESTAMP NOT NULL
         );
-    """));
+    """);
+
+    echo("Running migrations")
     for idx, mig in migration_path:
         let raw = db().getAllRows(sql"""
             SELECT id
@@ -149,7 +150,7 @@ proc get_publication_by_id * (id: string): (seq[string], int, string) =
         WHERE id = ?;
     """, id)
 
-    echo(row)
+    echo(fmt"SELECT ... FROM publications: {row}")
 
     let p = Publication(
         id: row[0],

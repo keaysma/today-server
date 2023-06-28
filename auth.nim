@@ -1,7 +1,4 @@
-import sugar
-import std/strutils
-import std/db_postgres
-
+import sugar, std/[db_postgres, strutils]
 import utils
 
 type

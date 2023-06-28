@@ -1,13 +1,6 @@
-import nimSHA2
-import sugar
-import std/algorithm
-import std/encodings
-import std/strutils
-import std/sequtils
-import std/times
-import std/uri
-import std/os
-import json
+import json, nimSHA2, sugar, std/[
+    algorithm, encodings, strutils, sequtils, times, uri, os
+]
 
 proc parse_from_query * (input: string, key: string, default: string): string =
     let queries = input.split('&')

@@ -1,6 +1,5 @@
 import ../router, ../auth, ../utils, ../database
-import std/asynchttpserver
-import json
+import json, std/asynchttpserver
 
 r HttpGet, "/api/publications",
     proc (req: Request, ctx: Session): Response =

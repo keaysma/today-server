@@ -1,6 +1,5 @@
 import ../router, ../auth, ../utils, ../database
-import std/[asynchttpserver, strutils]
-import json
+import json, std/[asynchttpserver, strutils]
 
 a HttpGet, "/api/items",
     proc (req: Request, ctx: Session): Response =

@@ -1,6 +1,5 @@
 import ../router, ../auth, ../database
-import std/[asynchttpserver, strformat, times]
-import sugar, json
+import json, std/asynchttpserver
 
 a HttpGet, "/api/me",
     proc (req: Request, ctx: Session): Response =
