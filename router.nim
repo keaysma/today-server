@@ -16,7 +16,7 @@ import auth, database, utils
 const allowed_headers = "Content-Type"
 
 type Response * = tuple[code: HttpCode, content: string]
-type Responder = proc (req: Request, ctx: Session): Response
+type Responder = proc (req: Request, ctx: Session): Response{.gcsafe.}
 
 var route_table = initTable[string, Table[HttpMethod, tuple[cb: Responder, auth: bool]]]()
 
@@ -31,7 +31,7 @@ proc r * (http_method: HttpMethod, route: string, callback: Responder) =
 
 proc a * (http_method: HttpMethod, route: string, callback: Responder) =
     register_route(http_method, route, callback, true)
-    
+
 proc handle_route_table (req: Request) {.async gcsafe.} =
     let allowed_origin = getEnv("origin")
     let cookie_domain = getEnv("domain")
