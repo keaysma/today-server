@@ -1,5 +1,6 @@
 import times, strutils, dotenv, std/[os, asyncdispatch, asynchttpserver, db_postgres]
-import router, database, routes/[generic, items, entries, session, users, publications]
+import router, database
+import routes/[generic, items, entries, session, users, publications]
 
 type EKeyboardInterrupt = object of CatchableError
 
