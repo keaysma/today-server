@@ -28,7 +28,7 @@ a HttpPatch, "/api/items",
     proc (req: Request, ctx: Session): Response =
         let data = parseJson(req.body)
 
-        var updates: seq[tuple[select: Item, update: Item]] = @[]
+        var updates: seq[tuple[select: Item, update: Item, do_update_entries: bool]] = @[]
         for raw_update in data["updates"].getElems:
                 let item_data = raw_update["item"]
                 let select_item = Item(
@@ -61,16 +61,29 @@ a HttpPatch, "/api/items",
                         )
                 )
 
+                let do_update_entries = raw_update{"migrateEntries"}.getBool(false)
+
                 updates.add((
                         select: select_item,
                         update: update_item,
+                        do_update_entries: do_update_entries,
                 ))
 
         var res: seq[Item] = @[]
         for update in updates:
-                let success = update_item(update[0], update[1])
-                if success:
-                    res.add(update[1])
+                echo update
+                let success_item = update_item(update[0], update[1])
+                echo success_item
+                if success_item == false:
+                    continue
+                
+                res.add(update[1])
+
+                if update[2] == false:
+                    continue
+
+                let success_entries = update_entries_by_item(update[0], update[1])
+                echo success_entries
                 # else:
                 #     res.add(update[0])
 

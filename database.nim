@@ -236,6 +236,48 @@ proc update_item*(select: Item, update: Item): bool =
 
     return raw.len > 0
 
+proc update_entries_by_item*(select: Item, update: Item): bool =
+    # Update entries that match the select item tags exactly
+    # Will change the tags to the new tags
+    let raw_exact = db().getAllRows(sql"""
+        UPDATE entries
+        SET key = ?, tags = ?, group_id = ?
+        WHERE key = ?
+        AND tags = ?
+        AND group_id = ?
+        RETURNING key;
+    """,
+    # SET
+        update.key,
+        make_database_tags(update.tags),
+        update.group,
+    # WHERE
+        select.key,
+        make_database_tags(select.tags),
+        select.group
+    )
+
+    # Update entries that match the select item tags partially
+    # Will not change the tags
+    let raw_partial = db().getAllRows(sql"""
+        UPDATE entries
+        SET key = ?, group_id = ?
+        WHERE key = ?
+        AND tags @> ?
+        AND group_id = ?
+        RETURNING key;
+    """,
+    # SET
+        update.key,
+        update.group,
+    # WHERE
+        select.key,
+        make_database_tags(select.tags),
+        select.group
+    )
+
+    return raw_exact.len > 0 or raw_partial.len > 0
+
 proc upsert_entry*(key: string, value: string, tags: seq[string],
         group: int): void =
     let tags_str: string = make_database_tags(tags)
