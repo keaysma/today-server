@@ -4,3 +4,6 @@ htmldocs/
 main
 sha_test
 .env
+
+# local testing
+.cookie
