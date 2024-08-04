@@ -129,10 +129,10 @@ proc get_group_name_by_id * (db: DbConn, group_id: int): string =
 proc get_user_id_from_headers * (db: DbConn, headers: auto): int =
     try:
         let cookie_str = headers["cookie"]
-        echo(cookie_str)
+        # echo(cookie_str)
         
         let cookies = cookie_str.split(";")
-        echo(cookies)
+        # echo(cookies)
         
         var token = ""
         for cookie in cookies:
@@ -140,7 +140,7 @@ proc get_user_id_from_headers * (db: DbConn, headers: auto): int =
             if strip(key_val[0]) == "token":
                 token = key_val[1]
 
-        echo(token)
+        # echo(token)
 
         return get_user_id_from_token(db, token)
     except:
