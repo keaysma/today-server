@@ -47,6 +47,8 @@ proc handle_route_table (req: Request) {.async gcsafe.} =
 
     let rmethod = req.reqMethod
     let rpath = $req.url.path
+    
+    # echo(fmt"[{rmethod}] {rpath}")
 
     #TODO: Options per endpoint, disabled for now because auth messes up options requests
     if req.reqMethod == HttpOptions:
@@ -54,9 +56,10 @@ proc handle_route_table (req: Request) {.async gcsafe.} =
             "Access-Control-Allow-Origin": fmt"{allowed_origin}",
             "Access-Control-Allow-Headers": fmt"{allowed_headers}",
             "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Methods": "OPTIONS, GET, POST, DELETE",
-            "Allow": "OPTIONS, GET, POST, DELETE"
+            "Access-Control-Allow-Methods": "OPTIONS, GET, POST, PATCH, DELETE",
+            "Allow": "OPTIONS, GET, POST, PATCH, DELETE"
         }
+        echo(fmt"[{rmethod}] {rpath} - 204")
         await req.respond(
             Http204,
             "",
@@ -83,12 +86,15 @@ proc handle_route_table (req: Request) {.async gcsafe.} =
                     "Access-Control-Allow-Credentials": "true",
                     "Set-Cookie": fmt"token={session_data[1]}; Expires={expires}; Path=/; Domain={cookie_domain}; HttpOnly{extra_cookie}"
                 }
+                echo(fmt"[{rmethod}] {rpath} - 204")
                 await req.respond(Http204, "", customHeaders.newHttpHeaders())
             else:
+                echo(fmt"[{rmethod}] {rpath} - 403")
                 await req.respond(Http403, "{\"error\": \"bad creds\"}", newHttpHeaders(baseHeaders))
         except:
             echo getCurrentExceptionMsg()
             let err = %* { "error": "bad payload" }
+            echo(fmt"[{rmethod}] {rpath} - 400")
             await req.respond(Http400, $err, newHttpHeaders(baseHeaders))
         return
 
