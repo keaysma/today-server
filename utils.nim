@@ -21,10 +21,7 @@ proc parse_pg_array * (input: string): seq[string] =
         .split(",")
 
 proc parse_json_array * (input: JsonNode): seq[string] =
-    return ($input)
-        .replace("[", "")
-        .replace("]", "")
-        .split(",")
+    return input.getElems().map(el => el.getStr())
 
 proc get_valid_group * (group_id: int, group_ids: seq[int]): int =
     if(group_id in group_ids):
