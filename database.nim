@@ -8,39 +8,41 @@ import dotenv, json, sugar, std/[
 import utils, migrations
 
 load()
-var db_conn * = open(getEnv("db_host"), getEnv("db_user"), getEnv("db_password"), getEnv("db"))
-proc db * (): DbConn =
+var db_conn* = open(getEnv("db_host"), getEnv("db_user"), getEnv("db_password"),
+        getEnv("db"))
+proc db*(): DbConn =
     try:
         discard db_conn.getRow(sql"""SELECT;""")
         #echo("connection is alive")
     except:
         echo("restore db")
-        db_conn = open(getEnv("db_host"), getEnv("db_user"), getEnv("db_password"), getEnv("db"))
+        db_conn = open(getEnv("db_host"), getEnv("db_user"), getEnv(
+                "db_password"), getEnv("db"))
     return db_conn
 
 type Tags = seq[string]
 
 type
-    Entry * = object
+    Entry* = object
         key, value: string
         group: int
         tags: Tags
 type
-    Item * = object
-        key: string
-        itype: string
-        group: int
-        tags: Tags
-        config: JsonNode # allegedly (it's actually jsonb)
+    Item* = object
+        key*: string
+        itype*: string
+        group*: int
+        tags*: Tags
+        config*: JsonNode # allegedly (it's actually jsonb)
 
 type
-    Publication * = object
+    Publication* = object
         id: string
         title: string
         group_id: int
         tags: seq[string]
 
-proc bootstrap * () =
+proc bootstrap*() =
     echo("Database Bootstrap")
     db().exec(sql"""
         CREATE TABLE IF NOT EXISTS migrations (
@@ -67,7 +69,7 @@ proc bootstrap * () =
                 VALUES (?, now());
             """, idx)
 
-proc get_items_by_tags * (tags: Tags, groups: seq[int]): seq[Item] =
+proc get_items_by_tags*(tags: Tags, groups: seq[int]): seq[Item] =
     let group_filter = make_database_tuple(groups)
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
@@ -82,15 +84,15 @@ proc get_items_by_tags * (tags: Tags, groups: seq[int]): seq[Item] =
     for r in raw:
         result.add(
             Item(
-                key: r[0], 
-                itype: r[1], 
-                group: parseInt(r[2]), 
-                config: parseJson(r[3]), 
+                key: r[0],
+                itype: r[1],
+                group: parseInt(r[2]),
+                config: parseJson(r[3]),
                 tags: parse_pg_array(r[4])
             )
         )
 
-proc get_items_by_tags_public * (tags: Tags, group: int): seq[Item] =
+proc get_items_by_tags_public*(tags: Tags, group: int): seq[Item] =
     let secure_tags = tags & @["blog"]
     let vals = collect(newSeq):
         for tag in secure_tags: "\"" & tag & "\""
@@ -105,14 +107,14 @@ proc get_items_by_tags_public * (tags: Tags, group: int): seq[Item] =
     for r in raw:
         result.add(
             Item(
-                key: r[0], 
-                itype: r[1], 
-                config: parseJson(r[2]), 
+                key: r[0],
+                itype: r[1],
+                config: parseJson(r[2]),
                 tags: parse_pg_array(r[3])
             )
         )
 
-proc get_all_tag_sets_from_items * (groups: seq[int]): seq[seq[string]] =
+proc get_all_tag_sets_from_items*(groups: seq[int]): seq[seq[string]] =
     let group_filter = make_database_tuple(groups)
     let raw = db().getAllRows(sql(fmt"""
         SELECT DISTINCT ON (tags) tags 
@@ -123,7 +125,7 @@ proc get_all_tag_sets_from_items * (groups: seq[int]): seq[seq[string]] =
     for row in raw:
         result.add(parse_pg_array(row[0]))
 
-proc get_all_tags_from_items * (groups: seq[int]): seq[string] =
+proc get_all_tags_from_items*(groups: seq[int]): seq[string] =
     let group_filter = make_database_tuple(groups)
     let raw = db().getAllRows(sql(fmt"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag 
@@ -133,7 +135,7 @@ proc get_all_tags_from_items * (groups: seq[int]): seq[string] =
     for tag in raw:
         result.add(tag)
 
-proc get_all_tags_from_entries * (groups: seq[int]): seq[string] =
+proc get_all_tags_from_entries*(groups: seq[int]): seq[string] =
     let group_filter = make_database_tuple(groups)
     let raw = db().getAllRows(sql(fmt"""
         SELECT DISTINCT ON (tag) unnest(tags) AS tag
@@ -143,7 +145,7 @@ proc get_all_tags_from_entries * (groups: seq[int]): seq[string] =
     for tag in raw:
         result.add(tag)
 
-proc get_publication_by_id * (id: string): (seq[string], int, string) =
+proc get_publication_by_id*(id: string): (seq[string], int, string) =
     let row = db().getRow(sql"""
         SELECT id, title, group_id, tags
         FROM publications
@@ -161,7 +163,7 @@ proc get_publication_by_id * (id: string): (seq[string], int, string) =
 
     return (p.tags, p.group_id, p.title)
 
-proc get_entries_by_tag * (tags: Tags, groups: seq[int]): seq[Entry] =
+proc get_entries_by_tag*(tags: Tags, groups: seq[int]): seq[Entry] =
     let group_filter = make_database_tuple(groups)
     let vals = collect(newSeq):
         for tag in tags: "\"" & tag & "\""
@@ -180,7 +182,7 @@ proc get_entries_by_tag * (tags: Tags, groups: seq[int]): seq[Entry] =
             tags: parse_pg_array(r[3])
         ))
 
-proc get_entries_by_tag_public * (tags: Tags, group: int): seq[Entry] =
+proc get_entries_by_tag_public*(tags: Tags, group: int): seq[Entry] =
     let secure_tags = tags & @["blog"]
     let vals = collect(newSeq):
         for tag in secure_tags: "\"" & tag & "\""
@@ -199,14 +201,43 @@ proc get_entries_by_tag_public * (tags: Tags, group: int): seq[Entry] =
             tags: parse_pg_array(r[3])
         ))
 
-proc insert_item * (key: string, itype: string, config_json: string, group: int, tags: seq[string]): void =
+proc insert_item*(key: string, itype: string, config_json: string, group: int,
+        tags: seq[string]): void =
     let tags_str: string = make_database_tags(tags)
     db().exec(sql"""
         INSERT INTO items (key, itype, config, tags, group_id)
         VALUES (?, ?, ?, ?, ?);
     """, key, itype, config_json, tags_str, group)
 
-proc upsert_entry * (key: string, value: string, tags: seq[string], group: int): void =
+proc update_item*(select: Item, update: Item): bool =
+    let raw = db().getAllRows(sql"""
+        UPDATE items
+        SET key = ?, itype = ?, config = ?, tags = ?, group_id = ?
+        WHERE key = ?
+        AND itype = ?
+        AND config = ?
+        AND tags = ?
+        AND group_id = ?
+        RETURNING key;
+    """,
+    # SET
+        update.key,
+        update.itype,
+        update.config,
+        make_database_tags(update.tags),
+        update.group,
+    # WHERE
+        select.key,
+        select.itype,
+        select.config,
+        make_database_tags(select.tags),
+        select.group
+    )
+
+    return raw.len > 0
+
+proc upsert_entry*(key: string, value: string, tags: seq[string],
+        group: int): void =
     let tags_str: string = make_database_tags(tags)
 
     let res = db().getRow(sql"""
@@ -231,14 +262,15 @@ proc upsert_entry * (key: string, value: string, tags: seq[string], group: int):
             VALUES (?, ?, ?, ?);
         """, key, value, tags_str, group)
 
-proc delete_item_by_key * (key: string, group: int): void =
+proc delete_item_by_key*(key: string, group: int): void =
     db().exec(sql"""
         DELETE FROM items
         WHERE key = ?
         AND group_id = ?;
     """, key, group)
 
-proc delete_entry_by_key_tags * (key: string, tags: seq[string], group: int): void =
+proc delete_entry_by_key_tags*(key: string, tags: seq[string],
+        group: int): void =
     let tags_str: string = make_database_tags(tags)
     echo(tags_str)
     db().exec(sql"""
@@ -248,7 +280,7 @@ proc delete_entry_by_key_tags * (key: string, tags: seq[string], group: int): vo
         AND group_id = ?;
     """, key, tags_str, group)
 
-proc create_user * (username: string, raw_password: string): void =
+proc create_user*(username: string, raw_password: string): void =
     let password_hash = make_password_hash(raw_password)
     db().exec(sql"""
         INSERT INTO users (username, password, created)
