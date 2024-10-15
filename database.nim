@@ -24,9 +24,9 @@ type Tags = seq[string]
 
 type
     Entry* = object
-        key, value: string
-        group: int
-        tags: Tags
+        key*, value*: string
+        group*: int
+        tags*: Tags
 type
     Item* = object
         key*: string
@@ -303,6 +303,30 @@ proc upsert_entry*(key: string, value: string, tags: seq[string],
             INSERT INTO entries (key, value, tags, group_id)
             VALUES (?, ?, ?, ?);
         """, key, value, tags_str, group)
+
+proc update_entry*(select: Entry, update: Entry): bool =
+    let raw = db().getAllRows(sql"""
+        UPDATE entries
+        SET key = ?, value = ?, tags = ?, group_id = ?
+        WHERE key = ?
+        AND value = ?
+        AND tags = ?
+        AND group_id = ?
+        RETURNING key;
+    """,
+    # SET
+        update.key,
+        update.value,
+        make_database_tags(update.tags),
+        update.group,
+    # WHERE
+        select.key,
+        select.value,
+        make_database_tags(select.tags),
+        select.group
+    )
+
+    return raw.len > 0
 
 proc delete_item_by_key*(key: string, group: int): void =
     db().exec(sql"""
